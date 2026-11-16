@@ -1,3 +1,113 @@
+use oxidi_core::{get, module};
+
+// Example services
+
+#[derive(Clone, Debug)]
+pub struct Database {
+    connection_string: String,
+}
+
+impl Database {
+    pub fn new(conn: &str) -> Self {
+        println!("Database::new({})", conn);
+        Self {
+            connection_string: conn.to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UserRepository {
+    database: Database,
+}
+
+impl UserRepository {
+    pub fn new(database: Database) -> Self {
+        println!("UserRepository::new(database)");
+        Self { database }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Logger;
+
+impl Logger {
+    pub fn new() -> Self {
+        println!("Logger::new()");
+        Self
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RequestHandler {
+    repo: UserRepository,
+    logger: Logger,
+}
+
+impl RequestHandler {
+    pub fn new(repo: UserRepository, logger: Logger) -> Self {
+        println!("RequestHandler::new(repo, logger)");
+        Self { repo, logger }
+    }
+}
+
+// Function that uses global get() without passing container
+fn process_request() {
+    let handler: RequestHandler = get();
+    println!("Processing request with handler: {:?}", handler);
+}
+
+fn show_database_info() {
+    let db: Database = get();
+    println!("Database connection: {}", db.connection_string);
+}
+
 fn main() {
-    println!("Hello, world!");
+    println!("=== Initializing Oxidi container ===");
+    
+    // Initialize the global container with module!() DSL
+    oxidi_core::init(module! {
+        single {
+            Logger::new()
+        }
+        
+        single {
+            Database::new("postgres://localhost:5432/mydb")
+        }
+        
+        single {
+            let db: Database = get();
+            let logger: Logger = get();
+            UserRepository::new(db)
+        }
+        
+        factory {
+            let repo: UserRepository = get();
+            let logger: Logger = get();
+            RequestHandler::new(repo, logger)
+        }
+    });
+    
+    println!("\n=== Accessing services from main ===");
+    
+    // Access services from anywhere with get()
+    let db: Database = get();
+    println!("Got database: {:?}", db);
+    
+    let repo: UserRepository = get();
+    println!("Got user repo: {:?}", repo);
+    
+    // Factory creates new instance each time
+    let handler1: RequestHandler = get();
+    let handler2: RequestHandler = get();
+    println!("Got handler 1: {:?}", handler1);
+    println!("Got handler 2: {:?}", handler2);
+    
+    println!("\n=== Calling functions that use get() ===");
+    
+    // Functions can access services without passing container
+    process_request();
+    show_database_info();
+    
+    println!("\n=== Done ===");
 }

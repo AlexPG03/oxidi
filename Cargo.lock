@@ -5,10 +5,17 @@ version = 4
 [[package]]
 name = "oxidi_core"
 version = "0.1.0"
+dependencies = [
+ "oxidi_macros",
+]
 
 [[package]]
 name = "oxidi_expample_app"
 version = "0.1.0"
+dependencies = [
+ "oxidi_core",
+ "oxidi_macros",
+]
 
 [[package]]
 name = "oxidi_macros"

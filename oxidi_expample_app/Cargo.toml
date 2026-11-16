@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+oxidi_core = { path = "../oxidi_core" }
+oxidi_macros = { path = "../oxidi_macros" }
