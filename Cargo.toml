@@ -1,0 +1,3 @@
+[workspace]
+members = ["oxidi_core", "oxidi_expample_app", "oxidi_macros"]
+resolver = "2"
