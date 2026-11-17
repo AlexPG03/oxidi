@@ -2,6 +2,13 @@
 name = "oxidi_macros"
 version = "0.1.0"
 edition = "2024"
+description = "Procedural macros for the Oxidi zero-cost dependency injection framework"
+license = "MIT"
+repository = "https://github.com/AlexPG03/oxidi"
+documentation = "https://docs.rs/oxidi_macros"
+keywords = ["di", "dependency-injection", "ioc", "container", "koin"]
+categories = ["rust-patterns", "asynchronous"]
+readme = "README.md"
 
 [lib]
 proc-macro = true
@@ -10,3 +17,6 @@ proc-macro = true
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 quote = "1.0"
 proc-macro2 = "1.0"
+
+[package.metadata.docs.rs]
+all-features = true

@@ -2,6 +2,16 @@
 name = "oxidi_core"
 version = "0.1.0"
 edition = "2024"
+description = "Zero-cost dependency injection container for Rust with compile-time resolution"
+license = "MIT"
+repository = "https://github.com/AlexPG03/oxidi"
+documentation = "https://docs.rs/oxidi_core"
+keywords = ["di", "dependency-injection", "ioc", "container", "koin"]
+categories = ["rust-patterns", "asynchronous"]
+readme = "README.md"
 
 [dependencies]
-oxidi_macros = { path = "../oxidi_macros" }
+oxidi_macros = { version = "0.1.0", path = "../oxidi_macros" }
+
+[package.metadata.docs.rs]
+all-features = true

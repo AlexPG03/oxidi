@@ -19,30 +19,40 @@ use codegen::generate;
 /// - `factory { ... }` — Factory service (new instance each time)
 /// - `get::<T>()` — Resolve a dependency inside the block
 ///
+/// The macro must be placed at the **module level** (outside any function).
+/// It generates:
+/// - A container struct (`OxidiContainer`)
+/// - `OxidiResolve` trait implementations for each service type
+/// - A `__oxidi_init__()` function to initialize the global container
+///
 /// # Example
 ///
 /// ```rust,ignore
-/// use oxidi_macros::module;
+/// use oxidi_core::module;
 /// use oxidi_core::get;
 ///
+/// // 1. Define the module at the top level (outside any function)
+/// module! {
+///     single {
+///         Database::new("postgres://localhost")
+///     }
+///
+///     single {
+///         let db: Database = get();
+///         UserRepository::new(db)
+///     }
+///
+///     factory {
+///         let repo: UserRepository = get();
+///         RequestHandler::new(repo)
+///     }
+/// }
+///
 /// fn main() {
-///     oxidi_core::init(module! {
-///         single {
-///             Database::new("postgres://localhost")
-///         }
+///     // 2. Initialize the container
+///     __oxidi_init__();
 ///
-///         single {
-///             let db: Database = get();
-///             UserRepository::new(db)
-///         }
-///
-///         factory {
-///             let repo: UserRepository = get();
-///             RequestHandler::new(repo)
-///         }
-///     });
-///
-///     // Access services from anywhere
+///     // 3. Access services from anywhere
 ///     let db: Database = get();
 ///     let handler = get::<RequestHandler>();
 /// }
@@ -74,15 +84,19 @@ pub fn module(input: TokenStream) -> TokenStream {
     // Generate code: struct definition + impl + OxidiResolve traits
     let (struct_and_impl, resolve_impls) = generate(&module_def, &analysis);
     
-    // Everything goes inside a single block so module!() is a valid expression.
-    // Each impl has #[allow(non_local_definitions)] to suppress the warning.
+    // Emit all items at module level so rust-analyzer can index the trait impls.
+    // The struct, impl blocks, and OxidiResolve impls are all top-level items.
+    // A helper function __oxidi_init__() is generated to build and store the container.
     let output = quote! {
-        {
-            #struct_and_impl
-            #resolve_impls
-            OxidiContainer::new()
+        #struct_and_impl
+        #resolve_impls
+
+        /// Internal function to initialize the Oxidi container.
+        pub fn __oxidi_init__() {
+            let container = OxidiContainer::new();
+            oxidi_core::__private_init(container);
         }
     };
-    
+
     output.into()
 }

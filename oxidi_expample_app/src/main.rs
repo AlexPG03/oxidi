@@ -1,4 +1,4 @@
-use oxidi_core::{get, module};
+use oxidi_core::get;
 
 // Example services
 
@@ -54,6 +54,30 @@ impl RequestHandler {
     }
 }
 
+// Define the DI module at the module level (outside any function).
+// This generates the container struct, OxidiResolve impls, and __oxidi_init__().
+oxidi_core::module! {
+    single {
+        Logger::new()
+    }
+    
+    single {
+        Database::new("postgres://localhost:5432/mydb")
+    }
+    
+    single {
+        let db: Database = get();
+        let _logger: Logger = get();
+        UserRepository::new(db)
+    }
+    
+    factory {
+        let repo: UserRepository = get();
+        let logger: Logger = get();
+        RequestHandler::new(repo, logger)
+    }
+}
+
 // Function that uses global get() without passing container
 fn process_request() {
     let handler: RequestHandler = get();
@@ -68,28 +92,8 @@ fn show_database_info() {
 fn main() {
     println!("=== Initializing Oxidi container ===");
     
-    // Initialize the global container with module!() DSL
-    oxidi_core::init(module! {
-        single {
-            Logger::new()
-        }
-        
-        single {
-            Database::new("postgres://localhost:5432/mydb")
-        }
-        
-        single {
-            let db: Database = get();
-            let _logger: Logger = get();
-            UserRepository::new(db)
-        }
-        
-        factory {
-            let repo: UserRepository = get();
-            let logger: Logger = get();
-            RequestHandler::new(repo, logger)
-        }
-    });
+    // Initialize the global container
+    __oxidi_init__();
     
     println!("\n=== Accessing services from main ===");
     
