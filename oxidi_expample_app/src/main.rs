@@ -18,6 +18,7 @@ impl Database {
 
 #[derive(Clone, Debug)]
 pub struct UserRepository {
+    #[allow(dead_code)]
     database: Database,
 }
 
@@ -40,7 +41,9 @@ impl Logger {
 
 #[derive(Clone, Debug)]
 pub struct RequestHandler {
+    #[allow(dead_code)]
     repo: UserRepository,
+    #[allow(dead_code)]
     logger: Logger,
 }
 
@@ -77,7 +80,7 @@ fn main() {
         
         single {
             let db: Database = get();
-            let logger: Logger = get();
+            let _logger: Logger = get();
             UserRepository::new(db)
         }
         
@@ -91,6 +94,8 @@ fn main() {
     println!("\n=== Accessing services from main ===");
     
     // Access services from anywhere with get()
+    let db: Database = get();
+    println!("Got database: {:?}", db);
     let db: Database = get();
     println!("Got database: {:?}", db);
     

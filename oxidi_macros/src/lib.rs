@@ -26,7 +26,7 @@ use codegen::generate;
 /// use oxidi_core::get;
 ///
 /// fn main() {
-///     oxidi::init(module! {
+///     oxidi_core::init(module! {
 ///         single {
 ///             Database::new("postgres://localhost")
 ///         }
@@ -74,8 +74,8 @@ pub fn module(input: TokenStream) -> TokenStream {
     // Generate code: struct definition + impl + OxidiResolve traits
     let (struct_and_impl, resolve_impls) = generate(&module_def, &analysis);
     
-    // Everything goes inside a single block so it's a valid expression.
-    // The struct, impl, and resolve impls are all defined inside, then we return the instance.
+    // Everything goes inside a single block so module!() is a valid expression.
+    // Each impl has #[allow(non_local_definitions)] to suppress the warning.
     let output = quote! {
         {
             #struct_and_impl

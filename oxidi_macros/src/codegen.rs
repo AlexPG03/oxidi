@@ -115,6 +115,7 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
     let resolve_impls: Vec<_> = field_info.iter().map(|(name, ty, stype, _body)| {
         match stype {
             ServiceType::Single => quote! {
+                #[allow(non_local_definitions)]
                 impl oxidi_core::OxidiResolve for #ty {
                     fn resolve(container: &std::boxed::Box<dyn std::any::Any + Send + Sync>) -> Self {
                         let c = container.downcast_ref::<OxidiContainer>()
@@ -128,6 +129,7 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
                 let method_name = name_str.trim_start_matches("__").to_string();
                 let method_ident = format_ident!("{}", method_name);
                 quote! {
+                    #[allow(non_local_definitions)]
                     impl oxidi_core::OxidiResolve for #ty {
                         fn resolve(container: &std::boxed::Box<dyn std::any::Any + Send + Sync>) -> Self {
                             let c = container.downcast_ref::<OxidiContainer>()
@@ -204,7 +206,7 @@ fn replace_get_calls(
     // Parse back to tokens
     match result.parse::<proc_macro2::TokenStream>() {
         Ok(ts) => ts,
-        Err(e) => {
+        Err(_e) => {
             quote::quote!(#body)
         }
     }
@@ -252,13 +254,6 @@ fn infer_type_from_expr(expr: &Expr) -> Type {
                 if segments.len() > 1 {
                     segments.pop();
                 }
-                // Build a clean path without leading_colon issues
-                let path_str = segments.iter()
-                    .map(|s| s.ident.to_string())
-                    .collect::<Vec<_>>()
-                    .join("::");
-                
-                
                 if segments.is_empty() {
                     return Type::Verbatim(quote! { () });
                 }
