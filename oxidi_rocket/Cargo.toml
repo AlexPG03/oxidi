@@ -1,0 +1,18 @@
+[package]
+name = "oxidi_rocket"
+version = "0.7.0"
+edition = "2024"
+description = "Rocket integration for the Oxidi zero-cost dependency injection framework"
+license = "MIT"
+repository = "https://github.com/AlexPG03/oxidi"
+documentation = "https://docs.rs/oxidi_rocket"
+keywords = ["di", "dependency-injection", "rocket", "web", "extractor"]
+categories = ["rust-patterns", "web-programming::http-server"]
+readme = "README.md"
+
+[dependencies]
+oxidi_core = { version = "0.7.0", path = "../oxidi_core" }
+rocket = "0.5"
+
+[package.metadata.docs.rs]
+all-features = true

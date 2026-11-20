@@ -5,7 +5,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo run -p oxidi_expample_app --bin scoped_example
+//! cargo run -p oxidi_example_app --bin scoped_example
 //! ```
 
 use oxidi_core::{get, scope, async_scope};

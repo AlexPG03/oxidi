@@ -97,7 +97,7 @@ Add `oxidi_core` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
+oxidi_core = "0.7"
 ```
 
 Define your services and the DI module:
@@ -247,7 +247,7 @@ fn main() {
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
+oxidi_core = "0.7"
 ```
 
 > **Note:** `oxidi_core` re-exports the `module!` macro and `get()` function. You do not need to depend on `oxidi_macros` directly.
@@ -459,7 +459,7 @@ Oxidi provides a `test-support` feature for writing isolated unit tests with moc
 
 ```toml
 [dependencies]
-oxidi_core = { version = "0.1", features = ["test-support"] }
+oxidi_core = { version = "0.7", features = ["test-support"] }
 ```
 
 ### Basic Override
@@ -548,8 +548,8 @@ The [`oxidi_axum`](https://crates.io/crates/oxidi_axum) crate provides the `Inje
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
-oxidi_axum = "0.1"
+oxidi_core = "0.7"
+oxidi_axum = "0.7"
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 ```
@@ -629,8 +629,8 @@ The [`oxidi_rocket`](https://crates.io/crates/oxidi_rocket) crate provides the `
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
-oxidi_rocket = "0.1"
+oxidi_core = "0.7"
+oxidi_rocket = "0.7"
 rocket = { version = "0.5", features = ["json"] }
 ```
 
@@ -709,8 +709,8 @@ The [`oxidi_actix`](https://crates.io/crates/oxidi_actix) crate provides the `In
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
-oxidi_actix = "0.1"
+oxidi_core = "0.7"
+oxidi_actix = "0.7"
 actix-web = "4"
 ```
 
@@ -841,7 +841,7 @@ oxidi/
 ├── oxidi_core/          # Runtime: get(), OxidiResolve, global container
 ├── oxidi_macros/        # Proc-macro: module!(), DSL parser, analyzer, codegen
 ├── oxidi_rocket/        # Rocket integration: Inject<T> extractor
-└── oxidi_expample_app/  # Example application (CLI + Axum)
+└── oxidi_example_app/   # Example application (CLI + Axum)
 ```
 
 ### Compilation Pipeline

@@ -12,8 +12,8 @@ Add `oxidi_rocket` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxidi_rocket = "0.1"
-oxidi_core = "0.1"
+oxidi_rocket = "0.7"
+oxidi_core = "0.7"
 rocket = { version = "0.5", features = ["json"] }
 ```
 
@@ -21,10 +21,10 @@ Define your DI module and use `Inject<T>` in handlers:
 
 ```rust
 use oxidi_rocket::Inject;
-use oxidi_core::module;
+use oxidi_core::get;
 use rocket::get;
 
-module! {
+oxidi_core::module! {
     single {
         Database::new("postgres://localhost")
     }

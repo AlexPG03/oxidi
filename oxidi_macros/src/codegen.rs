@@ -211,7 +211,6 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
             
             /// Create a container with optional overrides for testing.
             /// The `overrides` parameter provides mock instances that replace real services.
-            #[cfg(feature = "test-support")]
             pub fn with_overrides(overrides: &oxidi_core::test_support::OverridesMap) -> Self {
                 #(#override_constructor_steps)*
                 #(#override_checks)*
@@ -319,7 +318,11 @@ fn type_to_string(ty: &Type) -> String {
             .map(|s| s.ident.to_string())
             .collect::<Vec<_>>()
             .join("::"),
-        _ => quote::quote!(#ty).to_string(),
+        _ => {
+            let s = quote::quote!(#ty).to_string();
+            // Remove spaces for Verbatim types (e.g., "ShippingService" instead of "ShippingService")
+            s.replace(' ', "")
+        }
     }
 }
 

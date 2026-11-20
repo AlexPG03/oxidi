@@ -1,1 +1,11 @@
-/target
+/target/
+.idea/
+*.rs.bk
+*.rs.bak
+*.rs~
+.DS_Store
+*.swp
+*.swo
+*~
+rust-analyzer.json
+.cargo/.package-cache

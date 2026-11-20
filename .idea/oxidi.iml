@@ -8,6 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/oxidi_actix/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/oxidi_axum/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/oxidi_example_app/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/oxidi_rocket/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

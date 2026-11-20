@@ -20,10 +20,10 @@ cargo add oxidi_axum oxidi_core
 
 ```rust
 use oxidi_axum::Inject;
-use oxidi_core::module;
+use oxidi_core::get;
 use axum::routing::get;
 
-module! {
+oxidi_core::module! {
     single {
         Database::new("postgres://localhost")
     }

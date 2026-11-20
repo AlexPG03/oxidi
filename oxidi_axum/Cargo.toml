@@ -1,6 +1,6 @@
 [package]
 name = "oxidi_axum"
-version = "0.1.0"
+version = "0.7.0"
 edition = "2024"
 description = "Axum integration for the Oxidi zero-cost dependency injection framework"
 license = "MIT"
@@ -11,7 +11,7 @@ categories = ["rust-patterns", "web-programming::http-server"]
 readme = "README.md"
 
 [dependencies]
-oxidi_core = { version = "0.1.0", path = "../oxidi_core" }
+oxidi_core = { version = "0.7.0", path = "../oxidi_core" }
 axum = "0.8"
 
 [package.metadata.docs.rs]

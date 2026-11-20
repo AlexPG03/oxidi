@@ -5,9 +5,9 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo run -p oxidi_expample_app --bin axum_example
+//! cargo run -p oxidi_example_app --bin axum_example
 //! ```
-//! Then visit http://127.0.0.1:3000/health or http://127.0.0.1:3000/db
+//! Then visit http://127.0.0.1:3001/health or http://127.0.0.1:3001/db
 
 use oxidi_axum::Inject;
 use oxidi_core::get;
@@ -107,11 +107,11 @@ async fn main() {
         .route("/health", axum_get(health_check))
         .route("/db", axum_get(db_info));
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+    let listener = tokio::net::TcpListener::bind("localhost:3001")
         .await
-        .expect("Failed to bind to 127.0.0.1:3000");
+        .expect("Failed to bind to localhost:3001");
 
-    println!("Server listening on http://127.0.0.1:3000");
+    println!("Server listening on http://localhost:3001");
     println!("  GET /health — returns user count from UserRepository");
     println!("  GET /db     — returns database connection string");
     println!("Press Ctrl+C to stop.\n");

@@ -1,5 +1,5 @@
 [package]
-name = "oxidi_expample_app"
+name = "oxidi_example_app"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -26,11 +26,16 @@ name = "test_with_module"
 path = "src/test_with_module.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "examples"
+path = "src/examples.rs"
+required-features = ["test-support"]
+
 [features]
 test-support = ["oxidi_core/test-support"]
 
 [dependencies]
-oxidi_core = { path = "../oxidi_core", features = ["test-support"] }
+oxidi_core = { path = "../oxidi_core" }
 oxidi_macros = { path = "../oxidi_macros" }
 oxidi_axum = { path = "../oxidi_axum" }
 axum = { version = "0.8", features = ["json"] }

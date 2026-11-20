@@ -57,14 +57,14 @@ Building Rust applications requires wiring dependencies through constructors, cr
 | **Trait bounds on types** | ❌ None required | ✅ `Interface + Component` | ✅ `#[injectable]` |
 | **API surface** | 1 macro + 1 function | Module builders, providers, interfaces | ServiceCollection, descriptors, builders |
 | **Cycle detection** | ✅ Compile-time | ✅ Build-time | ✅ Registration-time |
-| **Scoped services** | ❌ (roadmap) | ✅ Sub-modules | ✅ Scoped providers |
-| **Framework integration** | ❌ (roadmap) | ✅ Axum, Rocket | ❌ |
+| **Scoped services** | ✅ `scoped` + `scope()` | ✅ Sub-modules | ✅ Scoped providers |
+| **Framework integration** | ✅ Axum, Rocket, Actix-web | ✅ Axum, Rocket | ❌ |
 | **Learning curve** | Low | Medium | High |
 | **Runtime overhead** | Zero | `Box<dyn Trait>` per resolution | Service lookup per resolution |
 
-> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost and don't need scoped services or framework integration yet.
-> **Choose shaku if:** you need Axum/Rocket integration or sub-module composition.
-> **Choose more-di if:** you need scoped providers and keyed services.
+> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost, scoped services, and Axum/Rocket/Actix-web integration.
+> **Choose shaku if:** you need sub-module composition.
+> **Choose more-di if:** you need keyed services.
 
 ---
 
@@ -74,6 +74,7 @@ Building Rust applications requires wiring dependencies through constructors, cr
 |---|---|
 | **Singleton services** | `single { ... }` — one shared instance across the application |
 | **Factory services** | `factory { ... }` — new instance created on every `get()` call |
+| **Scoped services** | `scoped { ... }` — one instance per scope, managed via `scope()` |
 | **Zero-cost resolution** | `get::<T>()` generates direct field access, no virtual dispatch |
 | **No trait bounds** | Your types don't need to implement any framework trait |
 | **Automatic dependency ordering** | Topological sort ensures services are created in the correct order |
@@ -91,7 +92,7 @@ Add `oxidi_core` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
+oxidi_core = "0.7"
 ```
 
 Define your services and the DI module:
@@ -241,7 +242,7 @@ fn main() {
 
 ```toml
 [dependencies]
-oxidi_core = "0.1"
+oxidi_core = "0.7"
 ```
 
 > **Note:** `oxidi_core` re-exports the `module!` macro and `get()` function. You do not need to depend on `oxidi_macros` directly.
@@ -417,13 +418,16 @@ Convention trait for extending the DSL. External crates can implement this trait
 
 ## Architecture
 
-Oxidi consists of three crates:
+Oxidi consists of six crates:
 
 ```
 oxidi/
-├── oxidi_core/        # Runtime: get(), OxidiResolve, global container
-├── oxidi_macros/      # Proc-macro: module!(), DSL parser, analyzer, codegen
-└── oxidi_expample_app/ # Example application
+├── oxidi_actix/         # Actix-web integration: Inject<T> extractor
+├── oxidi_axum/          # Axum integration: Inject<T> extractor
+├── oxidi_core/          # Runtime: get(), OxidiResolve, global container
+├── oxidi_macros/        # Proc-macro: module!(), DSL parser, analyzer, codegen
+├── oxidi_rocket/        # Rocket integration: Inject<T> extractor
+└── oxidi_example_app/   # Example application (CLI + Axum)
 ```
 
 ### Compilation Pipeline
@@ -433,7 +437,7 @@ module! { ... }
     │
     ▼
 ┌──────────────┐
-│  DSL Parser   │  Parses `single` / `factory` blocks, extracts get::<T>() calls
+│  DSL Parser   │  Parses `single` / `factory` / `scoped` blocks, extracts get::<T>() calls
 └──────┬───────┘
        │
        ▼
@@ -455,8 +459,8 @@ module! { ... }
 
 The `module!` macro generates:
 
-1. **`OxidiContainer` struct** — holds all singleton services as fields
-2. **Factory methods** — one per `factory` service, creates new instances on demand
+1. **`OxidiContainer` struct** — holds all singleton and scoped services as fields
+2. **Factory methods** — one per `factory` or `scoped` service, creates new instances on demand
 3. **`OxidiResolve` impls** — one per service type, maps `get::<T>()` to the correct container field or factory method
 4. **`__oxidi_init__()` function** — builds the container and stores it globally
 
@@ -495,15 +499,17 @@ This enables domain-specific extensions such as:
 
 Oxidi is in its early stages. Here's what's planned:
 
-### v0.2 (planned)
-- **Scoped services** — request-scoped and session-scoped lifetimes
+### v0.7 (done)
+- **Scoped services** — `scoped { ... }` keyword with `scope(|| { ... })` for per-scope lifetimes
+- **Async compatibility** — `async_scope()` for async code with `.await` points
+- **Axum integration** — [`oxidi_axum`](https://crates.io/crates/oxidi_axum) crate with `Inject<T>` extractor
+- **Rocket integration** — [`oxidi_rocket`](https://crates.io/crates/oxidi_rocket) crate with `Inject<T>` extractor
+- **Actix-web integration** — [`oxidi_actix`](https://crates.io/crates/oxidi_actix) crate with `Inject<T>` extractor
+- **Testing support** — `TestContainer` with `with_override()` for isolated unit tests
+
+### v0.8 (planned)
 - **`Option<T>` support** — optional dependencies that may not be registered
 - **Named/keyed services** — register multiple instances of the same type with different keys
-
-### v0.3 (planned)
-- **Framework integration** — `oxidi_axum` crate for seamless Axum handler injection
-- **Testing support** — `with_override()` to replace services with mocks in tests
-- **Multi-module composition** — combine modules from different crates
 
 ### Long-term
 - **Generic service support** — register services with type parameters

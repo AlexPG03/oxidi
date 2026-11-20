@@ -12,8 +12,8 @@ Add `oxidi_actix` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxidi_actix = "0.1"
-oxidi_core = "0.1"
+oxidi_actix = "0.7"
+oxidi_core = "0.7"
 actix-web = "4"
 ```
 
@@ -21,10 +21,10 @@ Define your DI module and use `Inject<T>` in handlers:
 
 ```rust
 use oxidi_actix::Inject;
-use oxidi_core::module;
+use oxidi_core::get;
 use actix_web::{get, web, App, HttpServer};
 
-module! {
+oxidi_core::module! {
     single {
         Database::new("postgres://localhost")
     }
