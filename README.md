@@ -1,8 +1,9 @@
 # Oxidi
 
-> **Zero-cost dependency injection for Rust.** Inspired by [Koin](https://insert-koin.io/) (Kotlin), Oxidi provides a declarative, type-safe DI container with zero runtime reflection — everything is resolved at compile time through procedural macros.
+> **The simplest zero-cost dependency injection for Rust.** Inspired by [Koin](https://insert-koin.io/) (Kotlin), Oxidi provides a declarative DI container where **everything is resolved at compile time** — no `dyn Trait`, no virtual dispatch, no runtime overhead.
 
 [![Crates.io](https://img.shields.io/crates/v/oxidi_core.svg)](https://crates.io/crates/oxidi_core)
+[![Downloads](https://img.shields.io/crates/d/oxidi_core.svg)](https://crates.io/crates/oxidi_core)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://docs.rs/oxidi_core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -10,7 +11,8 @@
 
 ## Table of Contents
 
-- [Vision](#vision)
+- [Why Oxidi?](#why-oxidi)
+- [Comparison with Alternatives](#comparison-with-alternatives)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Use Case](#use-case)
@@ -18,23 +20,51 @@
 - [API Reference](#api-reference)
 - [Architecture](#architecture)
 - [Plugin System](#plugin-system)
+- [Roadmap](#roadmap)
 - [IDE Compatibility](#ide-compatibility)
 - [License](#license)
 
 ---
 
-## Vision
+## Why Oxidi?
 
-Building Rust applications often requires manually wiring dependencies through function parameters, leading to boilerplate-heavy code and tight coupling. Frameworks like Spring (Java) and Koin (Kotlin) solved this problem with **Dependency Injection containers** that manage object lifecycles and resolve dependencies automatically.
+Building Rust applications requires wiring dependencies through constructors, creating boilerplate that grows with your codebase. Other languages solved this with DI frameworks like Spring (Java) or Koin (Kotlin). In Rust, the options are limited:
 
-**Oxidi brings this paradigm to Rust** — without the cost. Unlike runtime-based DI frameworks that rely on reflection or dynamic dispatch, Oxidi generates all resolution code at **compile time** using procedural macros. The result is:
+| Approach | Problem |
+|---|---|
+| **Manual wiring** | Tedious, error-prone, hard to refactor |
+| **shaku** | Uses `dyn Trait` + virtual dispatch at runtime; requires `Interface` trait on all types |
+| **more-di** | Heavy API with builders, descriptors, and multiple features to learn |
+| **No DI** | Pass containers through every function parameter |
 
-- **Zero runtime overhead**: no `Any` downcasting at runtime, no hash maps, no reflection.
-- **Full type safety**: every `get::<T>()` call is verified by the compiler.
-- **Declarative syntax**: define your entire service graph in a single, readable block.
-- **Global access**: retrieve services from anywhere without passing containers through call chains.
+**Oxidi takes a different approach:** it generates plain Rust code at compile time. No runtime container, no hash maps, no `dyn Trait` bounds, no virtual dispatch. The generated code is what you would have written by hand — a struct with fields and direct function calls — meaning the optimizer can inline and eliminate everything.
 
-Oxidi is designed for developers who want the productivity of a DI framework with the performance guarantees of Rust.
+### What makes it different
+
+- **100% compile-time resolution** — unlike shaku, which stores components as `dyn Interface` and resolves them at runtime, Oxidi generates direct field access.
+- **No trait bounds on your types** — you don't need to implement `Interface`, `Component`, or `Provider`. Your structs stay clean.
+- **Minimal API** — one macro (`module!`), one function (`get()`), one init call (`__oxidi_init__()`). No builders, no descriptors, no feature flags.
+- **Koin-inspired DSL** — if you've used Koin in Kotlin, the syntax feels familiar.
+
+---
+
+## Comparison with Alternatives
+
+| Feature | **Oxidi** | [shaku](https://crates.io/crates/shaku) | [more-di](https://crates.io/crates/more-di) |
+|---|---|---|---|
+| **Resolution** | Compile-time (generated code) | Runtime (`dyn Trait` lookup) | Runtime (service collection) |
+| **Virtual dispatch** | ❌ None | ✅ `dyn Interface` | ✅ `dyn Trait` |
+| **Trait bounds on types** | ❌ None required | ✅ `Interface + Component` | ✅ `#[injectable]` |
+| **API surface** | 1 macro + 1 function | Module builders, providers, interfaces | ServiceCollection, descriptors, builders |
+| **Cycle detection** | ✅ Compile-time | ✅ Build-time | ✅ Registration-time |
+| **Scoped services** | ❌ (roadmap) | ✅ Sub-modules | ✅ Scoped providers |
+| **Framework integration** | ❌ (roadmap) | ✅ Axum, Rocket | ❌ |
+| **Learning curve** | Low | Medium | High |
+| **Runtime overhead** | Zero | `Box<dyn Trait>` per resolution | Service lookup per resolution |
+
+> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost and don't need scoped services or framework integration yet.
+> **Choose shaku if:** you need Axum/Rocket integration or sub-module composition.
+> **Choose more-di if:** you need scoped providers and keyed services.
 
 ---
 
@@ -44,7 +74,8 @@ Oxidi is designed for developers who want the productivity of a DI framework wit
 |---|---|
 | **Singleton services** | `single { ... }` — one shared instance across the application |
 | **Factory services** | `factory { ... }` — new instance created on every `get()` call |
-| **Type-safe resolution** | `get::<T>()` — compile-time verified, zero-cost dispatch |
+| **Zero-cost resolution** | `get::<T>()` generates direct field access, no virtual dispatch |
+| **No trait bounds** | Your types don't need to implement any framework trait |
 | **Automatic dependency ordering** | Topological sort ensures services are created in the correct order |
 | **Cycle detection** | Circular dependencies are caught at compile time with clear error messages |
 | **Missing dependency detection** | Unresolved `get::<T>()` calls produce compile-time errors |
@@ -457,6 +488,29 @@ This enables domain-specific extensions such as:
 - **ViewModel** services for UI frameworks
 - **Navigation** modules for routing
 - **Background workers** for async tasks
+
+---
+
+## Roadmap
+
+Oxidi is in its early stages. Here's what's planned:
+
+### v0.2 (planned)
+- **Scoped services** — request-scoped and session-scoped lifetimes
+- **`Option<T>` support** — optional dependencies that may not be registered
+- **Named/keyed services** — register multiple instances of the same type with different keys
+
+### v0.3 (planned)
+- **Framework integration** — `oxidi_axum` crate for seamless Axum handler injection
+- **Testing support** — `with_override()` to replace services with mocks in tests
+- **Multi-module composition** — combine modules from different crates
+
+### Long-term
+- **Generic service support** — register services with type parameters
+- **Async initialization** — `async { ... }` blocks in service definitions
+- **Derive macro** — `#[OxidiComponent]` for automatic dependency inference
+
+> Have a feature request? Open an issue on [GitHub](https://github.com/AlexPG03/oxidi/issues).
 
 ---
 
