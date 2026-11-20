@@ -165,6 +165,37 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
     }).collect();
     
     // Generate the struct and impl (goes inside the block)
+    // For test support, generate constructor steps that use overrides instead of get()
+    // This allows building the container without initializing the global container
+    let override_constructor_steps: Vec<_> = field_info.iter().filter_map(|(name, _ty, stype, body)| {
+        match stype {
+            ServiceType::Single => {
+                // Replace get() calls with __get_override() calls for test support
+                let resolved_body = replace_get_calls_with_overrides(body, &type_to_field);
+                Some(quote! {
+                    let #name = { #resolved_body };
+                })
+            }
+            ServiceType::Factory | ServiceType::Scoped => None,
+        }
+    }).collect();
+
+    // Each singleton field checks if there's an override for its type
+    let override_checks: Vec<_> = field_info.iter()
+        .filter(|(_, _, stype, _)| matches!(stype, ServiceType::Single))
+        .map(|(name, ty, _, _)| {
+            quote! {
+                let #name = {
+                    if let Some(overridden) = oxidi_core::test_support::__get_override::<#ty>(overrides) {
+                        overridden
+                    } else {
+                        #name
+                    }
+                };
+            }
+        })
+        .collect();
+
     let struct_and_impl = quote! {
         pub struct OxidiContainer {
             #(#struct_fields)*
@@ -173,6 +204,17 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
         impl OxidiContainer {
             pub fn new() -> Self {
                 #(#constructor_steps)*
+                Self {
+                    #(#field_names),*
+                }
+            }
+            
+            /// Create a container with optional overrides for testing.
+            /// The `overrides` parameter provides mock instances that replace real services.
+            #[cfg(feature = "test-support")]
+            pub fn with_overrides(overrides: &oxidi_core::test_support::OverridesMap) -> Self {
+                #(#override_constructor_steps)*
+                #(#override_checks)*
                 Self {
                     #(#field_names),*
                 }
@@ -231,6 +273,43 @@ fn replace_get_calls(
         Err(_e) => {
             quote::quote!(#body)
         }
+    }
+}
+
+/// Replace `get::<T>()` and `let x: T = get()` patterns with override-aware lookups.
+/// For `with_overrides()`, this replaces `get()` calls with `__get_override()` calls
+/// that fall back to the local field variable if no override is found.
+fn replace_get_calls_with_overrides(
+    body: &Box<Expr>,
+    type_to_field: &std::collections::HashMap<String, syn::Ident>,
+) -> proc_macro2::TokenStream {
+    // First, use the regular replace_get_calls to get field references
+    let regular_tokens = replace_get_calls(body, type_to_field);
+    let mut result = regular_tokens.to_string();
+    
+    // The regular replacement already replaced get() with field.clone()
+    // Now we need to wrap each field access with an override check
+    // For each type, replace field.clone() with an override check
+    for (type_str, field_name) in type_to_field {
+        let field_clone = format!("{} . clone ( )", field_name);
+        let override_check = format!(
+            "oxidi_core::test_support::__get_override::<{}>(overrides).unwrap_or_else(|| {{ {} . clone ( ) }})",
+            type_str, field_name
+        );
+        result = result.replace(&field_clone, &override_check);
+        
+        // Also try without spaces
+        let field_clone2 = format!("{}.clone()", field_name);
+        let override_check2 = format!(
+            "oxidi_core::test_support::__get_override::<{}>(overrides).unwrap_or_else(|| {{ {} . clone ( ) }})",
+            type_str, field_name
+        );
+        result = result.replace(&field_clone2, &override_check2);
+    }
+    
+    match result.parse::<proc_macro2::TokenStream>() {
+        Ok(ts) => ts,
+        Err(_) => regular_tokens,
     }
 }
 

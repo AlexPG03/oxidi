@@ -1,0 +1,18 @@
+[package]
+name = "oxidi_actix"
+version = "0.1.0"
+edition = "2024"
+description = "Actix-web integration for the Oxidi zero-cost dependency injection framework"
+license = "MIT"
+repository = "https://github.com/AlexPG03/oxidi"
+documentation = "https://docs.rs/oxidi_actix"
+keywords = ["di", "dependency-injection", "actix", "actix-web", "extractor"]
+categories = ["rust-patterns", "web-programming::http-server"]
+readme = "README.md"
+
+[dependencies]
+oxidi_core = { version = "0.1.0", path = "../oxidi_core" }
+actix-web = "4"
+
+[package.metadata.docs.rs]
+all-features = true

@@ -17,8 +17,20 @@ path = "src/axum_example.rs"
 name = "scoped_example"
 path = "src/scoped_example.rs"
 
+[[test]]
+name = "test_example"
+path = "src/test_example.rs"
+
+[[test]]
+name = "test_with_module"
+path = "src/test_with_module.rs"
+required-features = ["test-support"]
+
+[features]
+test-support = ["oxidi_core/test-support"]
+
 [dependencies]
-oxidi_core = { path = "../oxidi_core" }
+oxidi_core = { path = "../oxidi_core", features = ["test-support"] }
 oxidi_macros = { path = "../oxidi_macros" }
 oxidi_axum = { path = "../oxidi_axum" }
 axum = { version = "0.8", features = ["json"] }

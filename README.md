@@ -18,7 +18,10 @@
 - [Use Case](#use-case)
 - [Detailed Guide](#detailed-guide)
 - [Scoped Services](#scoped-services)
+- [Testing Support](#testing-support)
 - [Axum Integration](#axum-integration)
+- [Rocket Integration](#rocket-integration)
+- [Actix-web Integration](#actix-web-integration)
 - [API Reference](#api-reference)
 - [Architecture](#architecture)
 - [Plugin System](#plugin-system)
@@ -60,12 +63,12 @@ Building Rust applications requires wiring dependencies through constructors, cr
 | **API surface** | 1 macro + 1 function | Module builders, providers, interfaces | ServiceCollection, descriptors, builders |
 | **Cycle detection** | ✅ Compile-time | ✅ Build-time | ✅ Registration-time |
 | **Scoped services** | ✅ `scoped` + `scope()` | ✅ Sub-modules | ✅ Scoped providers |
-| **Framework integration** | ✅ Axum | ✅ Axum, Rocket | ❌ |
+| **Framework integration** | ✅ Axum, Rocket, Actix-web | ✅ Axum, Rocket | ❌ |
 | **Learning curve** | Low | Medium | High |
 | **Runtime overhead** | Zero | `Box<dyn Trait>` per resolution | Service lookup per resolution |
 
-> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost, scoped services, and Axum integration.
-> **Choose shaku if:** you need Rocket integration or sub-module composition.
+> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost, scoped services, and Axum/Rocket/Actix-web integration.
+> **Choose shaku if:** you need sub-module composition.
 > **Choose more-di if:** you need keyed services.
 
 ---
@@ -450,6 +453,93 @@ Both errors produce clear `compile_error!` messages indicating the problem and h
 
 ---
 
+## Testing Support
+
+Oxidi provides a `test-support` feature for writing isolated unit tests with mock services. Enable it in your `Cargo.toml`:
+
+```toml
+[dependencies]
+oxidi_core = { version = "0.1", features = ["test-support"] }
+```
+
+### Basic Override
+
+Replace services with mocks using `TestContainer`:
+
+```rust
+use oxidi_core::test_support::{TestContainer, get_override};
+
+#[test]
+fn test_with_mock() {
+    let container = TestContainer::builder()
+        .with_override::<Database>(MockDatabase::new())
+        .with_override::<Logger>(MockLogger::new())
+        .build();
+
+    // Resolve mock services from the test container
+    let db: Database = get_override(&container);
+    let logger: Logger = get_override(&container);
+
+    assert!(db.is_mock());
+}
+```
+
+### Full Container Integration
+
+For services that depend on other services, use `build_with_container()`:
+
+```rust
+use oxidi_core::test_support::{TestContainer, get_from};
+
+#[test]
+fn test_with_full_container() {
+    let container = TestContainer::builder()
+        .with_override::<Database>(MockDatabase::new())
+        .build_with_container(OxidiContainer::with_overrides);
+
+    // Services that depend on Database will get the mock
+    let repo: UserRepository = get_from(&container);
+}
+```
+
+### Parallel Tests
+
+Each `TestContainer` is fully isolated — tests can run in parallel without interference:
+
+```rust
+#[test]
+fn test_parallel_1() {
+    let container = TestContainer::builder()
+        .with_override::<Database>(MockDatabase::new())
+        .build();
+    let db: Database = get_override(&container);
+}
+
+#[test]
+fn test_parallel_2() {
+    let container = TestContainer::builder()
+        .with_override::<Database>(MockDatabase::new())
+        .build();
+    let db: Database = get_override(&container);
+}
+```
+
+### API Overview
+
+| Function | Description |
+|---|---|
+| `TestContainer::builder()` | Start configuring overrides |
+| `.with_override::<T>(instance)` | Replace service `T` with a mock |
+| `.build()` | Create a simple test container |
+| `.build_with_container(fn)` | Create a full container with overrides |
+| `get_override(&container)` | Get an overridden service (simple mode) |
+| `get_from(&container)` | Resolve from full container (with dependencies) |
+| `scope_with(&container, \|\| { ... })` | Use scopes with test containers |
+
+> **Note:** The `test-support` feature has **zero overhead** in production — it's completely excluded from builds that don't enable it.
+
+---
+
 ## Axum Integration
 
 The [`oxidi_axum`](https://crates.io/crates/oxidi_axum) crate provides the `Inject<T>` extractor, which resolves Oxidi services directly inside Axum handler signatures.
@@ -531,6 +621,170 @@ Unlike `shaku_axum`, which stores the module in Axum's `State`, Oxidi already us
 
 ---
 
+## Rocket Integration
+
+The [`oxidi_rocket`](https://crates.io/crates/oxidi_rocket) crate provides the `Inject<T>` extractor, which resolves Oxidi services directly inside Rocket handler signatures.
+
+### Installation
+
+```toml
+[dependencies]
+oxidi_core = "0.1"
+oxidi_rocket = "0.1"
+rocket = { version = "0.5", features = ["json"] }
+```
+
+### Example
+
+```rust
+use oxidi_rocket::Inject;
+use oxidi_core::get;
+use rocket::{get as rocket_get, launch, build, routes};
+use rocket::serde::json::Json;
+use serde::Serialize;
+
+#[derive(Clone)]
+pub struct Database { connection_string: String }
+
+impl Database {
+    pub fn new(conn: &str) -> Self {
+        Self { connection_string: conn.to_string() }
+    }
+}
+
+#[derive(Clone)]
+pub struct UserRepository { database: Database }
+
+impl UserRepository {
+    pub fn new(database: Database) -> Self { Self { database } }
+    pub fn user_count(&self) -> usize { 42 }
+}
+
+oxidi_core::module! {
+    single {
+        Database::new("postgres://localhost:5432/mydb")
+    }
+    single {
+        let db: Database = get();
+        UserRepository::new(db)
+    }
+}
+
+#[derive(Serialize)]
+struct HealthResponse { status: String, users: usize }
+
+#[rocket_get("/health")]
+fn health_check(Inject(repo): Inject<UserRepository>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok".to_string(),
+        users: repo.user_count(),
+    })
+}
+
+#[launch]
+fn rocket() -> _ {
+    __oxidi_init__();
+
+    build().mount("/", routes![health_check])
+}
+```
+
+### How It Works
+
+`Inject<T>` implements Rocket's `FromRequest<'r>` extractor. When a handler declares `Inject<T>` as a parameter, Rocket calls the extractor, which resolves `T` from the global Oxidi container via `try_get::<T>()`.
+
+Unlike frameworks that require state wiring, Oxidi uses a global container — so no `State` or `FromState` setup is needed.
+
+### API
+
+- **`Inject<T>`** — An extractor that resolves `T` from the Oxidi container. Implements `Deref` for convenient access to the inner value.
+
+---
+
+## Actix-web Integration
+
+The [`oxidi_actix`](https://crates.io/crates/oxidi_actix) crate provides the `Inject<T>` extractor, which resolves Oxidi services directly inside Actix-web handler signatures.
+
+### Installation
+
+```toml
+[dependencies]
+oxidi_core = "0.1"
+oxidi_actix = "0.1"
+actix-web = "4"
+```
+
+### Example
+
+```rust
+use oxidi_actix::Inject;
+use oxidi_core::get;
+use actix_web::{get as actix_get, web, App, HttpServer, Responder};
+use serde::Serialize;
+
+#[derive(Clone)]
+pub struct Database { connection_string: String }
+
+impl Database {
+    pub fn new(conn: &str) -> Self {
+        Self { connection_string: conn.to_string() }
+    }
+}
+
+#[derive(Clone)]
+pub struct UserRepository { database: Database }
+
+impl UserRepository {
+    pub fn new(database: Database) -> Self { Self { database } }
+    pub fn user_count(&self) -> usize { 42 }
+}
+
+oxidi_core::module! {
+    single {
+        Database::new("postgres://localhost:5432/mydb")
+    }
+    single {
+        let db: Database = get();
+        UserRepository::new(db)
+    }
+}
+
+#[derive(Serialize)]
+struct HealthResponse { status: String, users: usize }
+
+#[actix_get("/health")]
+async fn health_check(Inject(repo): Inject<UserRepository>) -> impl Responder {
+    actix_web::HttpResponse::Ok().json(HealthResponse {
+        status: "ok".to_string(),
+        users: repo.user_count(),
+    })
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    __oxidi_init__();
+
+    HttpServer::new(|| {
+        App::new().service(health_check)
+    })
+    .bind("127.0.0.1:3000")?
+    .run()
+    .await
+}
+```
+
+### How It Works
+
+`Inject<T>` implements Actix-web's `FromRequest` extractor. When a handler declares `Inject<T>` as a parameter, Actix calls the extractor, which resolves `T` from the global Oxidi container via `try_get::<T>()`.
+
+Unlike frameworks that require state wiring, Oxidi uses a global container — so no `web::Data` or `App::data()` setup is needed.
+
+### API
+
+- **`Inject<T>`** — An extractor that resolves `T` from the Oxidi container. Implements `Deref` for convenient access to the inner value.
+
+---
+
 ## API Reference
 
 ### `oxidi_core::module! { ... }`
@@ -582,9 +836,11 @@ Oxidi consists of three crates:
 
 ```
 oxidi/
+├── oxidi_actix/         # Actix-web integration: Inject<T> extractor
 ├── oxidi_axum/          # Axum integration: Inject<T> extractor
 ├── oxidi_core/          # Runtime: get(), OxidiResolve, global container
 ├── oxidi_macros/        # Proc-macro: module!(), DSL parser, analyzer, codegen
+├── oxidi_rocket/        # Rocket integration: Inject<T> extractor
 └── oxidi_expample_app/  # Example application (CLI + Axum)
 ```
 
@@ -660,17 +916,27 @@ Oxidi is in its early stages. Here's what's planned:
 ### v0.2 (done)
 - **Axum integration** — [`oxidi_axum`](https://crates.io/crates/oxidi_axum) crate with `Inject<T>` extractor for seamless Axum handler injection
 
+### v0.3.1 (done)
+- **Rocket integration** — [`oxidi_rocket`](https://crates.io/crates/oxidi_rocket) crate with `Inject<T>` extractor for seamless Rocket handler injection
+
 ### v0.3 (done)
 - **Scoped services** — `scoped { ... }` keyword with `scope(|| { ... })` for per-scope lifetimes, including nested scope support
 - **Async compatibility** — `async_scope()` for async code with `.await` points, compatible with any runtime (Tokio, async-std, smol)
 
-### v0.4 (planned)
+### v0.5 (done)
+- **Actix-web integration** — [`oxidi_actix`](https://crates.io/crates/oxidi_actix) crate with `Inject<T>` extractor for seamless Actix-web handler injection
+
+### v0.6 (planned)
 - **`Option<T>` support** — optional dependencies that may not be registered
 - **Named/keyed services** — register multiple instances of the same type with different keys
 
-### v0.5 (planned)
+### v0.7 (done)
 - **Testing support** — `with_override()` to replace services with mocks in tests
-- **Multi-module composition** — combine modules from different crates
+- **TestContainer** — isolated container for parallel tests without touching the global container
+- **`get_override()`** — resolve services from a test container
+- **`build_with_container()`** — full integration with generated `OxidiContainer`
+
+### v0.8 (planned)
 
 ### Long-term
 - **Generic service support** — register services with type parameters
