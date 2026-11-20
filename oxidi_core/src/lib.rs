@@ -187,11 +187,11 @@ where
 {
     SCOPE_STACK.try_with(|stack| {
         let mut stack = stack.borrow_mut();
-        if let Some(scopes) = stack.as_mut() {
-            if let Some(scope) = scopes.last_mut() {
-                let type_id = TypeId::of::<T>();
-                scope.cache.insert(type_id, Box::new(val));
-            }
+        if let Some(scopes) = stack.as_mut()
+            && let Some(scope) = scopes.last_mut()
+        {
+            let type_id = TypeId::of::<T>();
+            scope.cache.insert(type_id, Box::new(val));
         }
     }).ok();
 }

@@ -29,7 +29,7 @@ impl UserRepository {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Logger;
 
 impl Logger {

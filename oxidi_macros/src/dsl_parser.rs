@@ -78,7 +78,7 @@ pub fn parse_module(input: proc_macro::TokenStream) -> syn::Result<ModuleDef> {
             let body = Box::new(syn::Expr::Block(syn::ExprBlock {
                 attrs: vec![],
                 label: None,
-                block: block,
+                block,
             }));
             
             services.push(ServiceDef {
@@ -102,10 +102,10 @@ fn extract_get_dependencies(block: &Block) -> Vec<syn::Type> {
     for stmt in &block.stmts {
         if let syn::Stmt::Expr(expr, _) = stmt {
             extract_types_from_expr(expr, &mut deps);
-        } else if let syn::Stmt::Local(local) = stmt {
-            if let Some(init) = &local.init {
-                extract_types_from_expr(&init.expr, &mut deps);
-            }
+        } else if let syn::Stmt::Local(local) = stmt
+            && let Some(init) = &local.init
+        {
+            extract_types_from_expr(&init.expr, &mut deps);
         }
     }
     
@@ -117,18 +117,17 @@ fn extract_types_from_expr(expr: &Expr, deps: &mut Vec<syn::Type>) {
     match expr {
         Expr::Call(call) => {
             // Check if this is a `get::<T>()` call
-            if let Expr::Path(path) = &*call.func {
-                if let Some(ident) = path.path.get_ident() {
-                    if ident == "get" {
-                        // Extract type from turbofish: get::<T>()
-                        if let Some(segment) = path.path.segments.last() {
-                            if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                                for arg in &args.args {
-                                    if let syn::GenericArgument::Type(ty) = arg {
-                                        deps.push(ty.clone());
-                                    }
-                                }
-                            }
+            if let Expr::Path(path) = &*call.func
+                && let Some(ident) = path.path.get_ident()
+                && ident == "get"
+            {
+                // Extract type from turbofish: get::<T>()
+                if let Some(segment) = path.path.segments.last()
+                    && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+                {
+                    for arg in &args.args {
+                        if let syn::GenericArgument::Type(ty) = arg {
+                            deps.push(ty.clone());
                         }
                     }
                 }
@@ -142,10 +141,10 @@ fn extract_types_from_expr(expr: &Expr, deps: &mut Vec<syn::Type>) {
             for stmt in &block.block.stmts {
                 if let syn::Stmt::Expr(e, _) = stmt {
                     extract_types_from_expr(e, deps);
-                } else if let syn::Stmt::Local(local) = stmt {
-                    if let Some(init) = &local.init {
-                        extract_types_from_expr(&init.expr, deps);
-                    }
+                } else if let syn::Stmt::Local(local) = stmt
+                    && let Some(init) = &local.init
+                {
+                    extract_types_from_expr(&init.expr, deps);
                 }
             }
         }

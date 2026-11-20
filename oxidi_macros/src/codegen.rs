@@ -24,13 +24,13 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
     }
     
     // Collect field info: (field_name, return_type, service_type, body)
-    let mut field_info: Vec<(syn::Ident, Type, ServiceType, &Box<Expr>)> = Vec::new();
+    let mut field_info: Vec<(syn::Ident, Type, ServiceType, &Expr)> = Vec::new();
     
     for &idx in ordered {
         let service = &services[idx];
         let field_name = format_ident!("__service_{}", idx);
         let return_type = infer_type_from_expr(&service.body);
-        field_info.push((field_name, return_type, service.service_type, &service.body as &Box<Expr>));
+        field_info.push((field_name, return_type, service.service_type, &*service.body));
     }
     
     // Build type-to-field mapping
@@ -234,7 +234,7 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
 /// Replace `get::<T>()` and `let x: T = get()` patterns with local variable references.
 /// Uses string-based replacement on the token output for simplicity.
 fn replace_get_calls(
-    body: &Box<Expr>,
+    body: &Expr,
     type_to_field: &std::collections::HashMap<String, syn::Ident>,
 ) -> proc_macro2::TokenStream {
     let tokens = quote::quote!(#body);
@@ -279,7 +279,7 @@ fn replace_get_calls(
 /// For `with_overrides()`, this replaces `get()` calls with `__get_override()` calls
 /// that fall back to the local field variable if no override is found.
 fn replace_get_calls_with_overrides(
-    body: &Box<Expr>,
+    body: &Expr,
     type_to_field: &std::collections::HashMap<String, syn::Ident>,
 ) -> proc_macro2::TokenStream {
     // First, use the regular replace_get_calls to get field references

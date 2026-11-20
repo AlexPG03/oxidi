@@ -117,6 +117,12 @@ pub struct TestContainerBuilder {
     overrides: OverridesMap,
 }
 
+impl Default for TestContainerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestContainerBuilder {
     /// Create a new builder with no overrides.
     pub fn new() -> Self {
@@ -348,7 +354,7 @@ task_local! {
 /// Panics if no override is registered for type `T`.
 pub fn get_override<T: Clone + 'static>(container: &TestContainer) -> T {
     container.overrides.get(&TypeId::of::<T>())
-        .expect(&format!(
+        .unwrap_or_else(|| panic!(
             "No override found for type `{}`. Use `with_override::<{}>()` to provide a mock instance.",
             std::any::type_name::<T>(),
             std::any::type_name::<T>()

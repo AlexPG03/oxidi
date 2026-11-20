@@ -148,21 +148,13 @@ fn type_to_string(ty: &Type) -> String {
 
 /// Get a human-readable name for a service
 fn service_name(service: &ServiceDef) -> String {
-    match &*service.body {
-        syn::Expr::Block(block) => {
-            if let Some(last_stmt) = block.block.stmts.last() {
-                if let syn::Stmt::Expr(expr, _) = last_stmt {
-                    if let syn::Expr::Call(call) = expr {
-                        if let syn::Expr::Path(path) = &*call.func {
-                            if let Some(segment) = path.path.segments.first() {
-                                return segment.ident.to_string();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        _ => {}
+    if let syn::Expr::Block(block) = &*service.body
+        && let Some(syn::Stmt::Expr(expr, _)) = block.block.stmts.last()
+        && let syn::Expr::Call(call) = expr
+        && let syn::Expr::Path(path) = &*call.func
+        && let Some(segment) = path.path.segments.first()
+    {
+        return segment.ident.to_string();
     }
     service.name.to_string()
 }
@@ -221,8 +213,8 @@ fn topological_sort(adj: &[Vec<usize>], n: usize) -> Vec<usize> {
     }
     
     let mut queue = VecDeque::new();
-    for i in 0..n {
-        if in_degree[i] == 0 {
+    for (i, &degree) in in_degree.iter().enumerate() {
+        if degree == 0 {
             queue.push_back(i);
         }
     }
