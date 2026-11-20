@@ -4,6 +4,23 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "axum_example"
+path = "src/axum_example.rs"
+
+[[bin]]
+name = "scoped_example"
+path = "src/scoped_example.rs"
+
 [dependencies]
 oxidi_core = { path = "../oxidi_core" }
 oxidi_macros = { path = "../oxidi_macros" }
+oxidi_axum = { path = "../oxidi_axum" }
+axum = { version = "0.8", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }

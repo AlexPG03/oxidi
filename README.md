@@ -17,6 +17,8 @@
 - [Quick Start](#quick-start)
 - [Use Case](#use-case)
 - [Detailed Guide](#detailed-guide)
+- [Scoped Services](#scoped-services)
+- [Axum Integration](#axum-integration)
 - [API Reference](#api-reference)
 - [Architecture](#architecture)
 - [Plugin System](#plugin-system)
@@ -57,14 +59,14 @@ Building Rust applications requires wiring dependencies through constructors, cr
 | **Trait bounds on types** | ❌ None required | ✅ `Interface + Component` | ✅ `#[injectable]` |
 | **API surface** | 1 macro + 1 function | Module builders, providers, interfaces | ServiceCollection, descriptors, builders |
 | **Cycle detection** | ✅ Compile-time | ✅ Build-time | ✅ Registration-time |
-| **Scoped services** | ❌ (roadmap) | ✅ Sub-modules | ✅ Scoped providers |
-| **Framework integration** | ❌ (roadmap) | ✅ Axum, Rocket | ❌ |
+| **Scoped services** | ✅ `scoped` + `scope()` | ✅ Sub-modules | ✅ Scoped providers |
+| **Framework integration** | ✅ Axum | ✅ Axum, Rocket | ❌ |
 | **Learning curve** | Low | Medium | High |
 | **Runtime overhead** | Zero | `Box<dyn Trait>` per resolution | Service lookup per resolution |
 
-> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost and don't need scoped services or framework integration yet.
-> **Choose shaku if:** you need Axum/Rocket integration or sub-module composition.
-> **Choose more-di if:** you need scoped providers and keyed services.
+> **Choose Oxidi if:** you want the simplest possible API with zero runtime cost, scoped services, and Axum integration.
+> **Choose shaku if:** you need Rocket integration or sub-module composition.
+> **Choose more-di if:** you need keyed services.
 
 ---
 
@@ -74,6 +76,7 @@ Building Rust applications requires wiring dependencies through constructors, cr
 |---|---|
 | **Singleton services** | `single { ... }` — one shared instance across the application |
 | **Factory services** | `factory { ... }` — new instance created on every `get()` call |
+| **Scoped services** | `scoped { ... }` — one instance per scope, managed via `scope()` |
 | **Zero-cost resolution** | `get::<T>()` generates direct field access, no virtual dispatch |
 | **No trait bounds** | Your types don't need to implement any framework trait |
 | **Automatic dependency ordering** | Topological sort ensures services are created in the correct order |
@@ -303,6 +306,74 @@ oxidi_core::module! {
 
 This is useful for request-scoped objects, controllers, or any service that should not be shared.
 
+#### `scoped` — Scoped Services
+
+A scoped service is created **once per scope** and lives only during that scope. Use `scope(|| { ... })` to activate a scope:
+
+```rust
+use oxidi_core::{get, scope};
+
+oxidi_core::module! {
+    single {
+        Database::new("postgres://localhost:5432/mydb")
+    }
+
+    scoped {
+        let db: Database = get();
+        Transaction::new(db)
+    }
+}
+
+fn main() {
+    __oxidi_init__();
+
+    // Each call to `scope` creates a fresh Transaction
+    scope(|| {
+        let tx: Transaction = get(); // new instance, cached in this scope
+        // ... use tx ...
+    }); // tx is dropped here
+
+    scope(|| {
+        let tx: Transaction = get(); // another new instance
+        // ... use tx ...
+    });
+
+    // Outside a scope, scoped services are not available
+    let db: Database = get(); // global singleton still works
+}
+```
+
+**Common use cases for scoped services:**
+
+- **Database transactions** — one transaction per request, automatically committed/rolled back
+- **Request context** — user session data, request IDs, tracing spans
+- **Per-task state** — background jobs with isolated state
+
+**Nested scopes** are supported: an inner scope shadows an outer scope for the same type, and the outer scope's instance is restored when the inner scope ends.
+
+#### `async_scope()` — Async-Compatible Scopes
+
+For async code with `.await` points, use `async_scope()` instead of `scope()`. It preserves the scope context across task migrations between threads, making it compatible with any async runtime (Tokio, async-std, smol, etc.):
+
+```rust
+use oxidi_core::{get, async_scope};
+
+#[tokio::main]
+async fn main() {
+    __oxidi_init__();
+
+    async_scope(async {
+        let tx: Transaction = get();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // tx is still available after .await
+        let tx2: Transaction = get();
+        assert_eq!(tx.id(), tx2.id());
+    }).await;
+}
+```
+
+The `scope()` function also works in async contexts as long as there are no `.await` points within the closure. Use `async_scope()` when you need to cross `.await` boundaries.
+
 #### Resolving Dependencies
 
 Inside a service block, use `get()` to reference other services:
@@ -379,6 +450,87 @@ Both errors produce clear `compile_error!` messages indicating the problem and h
 
 ---
 
+## Axum Integration
+
+The [`oxidi_axum`](https://crates.io/crates/oxidi_axum) crate provides the `Inject<T>` extractor, which resolves Oxidi services directly inside Axum handler signatures.
+
+### Installation
+
+```toml
+[dependencies]
+oxidi_core = "0.1"
+oxidi_axum = "0.1"
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+```
+
+### Example
+
+```rust
+use oxidi_axum::Inject;
+use oxidi_core::get;
+use axum::{Json, Router, routing::get as axum_get};
+use serde::Serialize;
+
+#[derive(Clone)]
+pub struct Database { connection_string: String }
+
+impl Database {
+    pub fn new(conn: &str) -> Self {
+        Self { connection_string: conn.to_string() }
+    }
+}
+
+#[derive(Clone)]
+pub struct UserRepository { database: Database }
+
+impl UserRepository {
+    pub fn new(database: Database) -> Self { Self { database } }
+    pub fn user_count(&self) -> usize { 42 }
+}
+
+oxidi_core::module! {
+    single {
+        Database::new("postgres://localhost:5432/mydb")
+    }
+    single {
+        let db: Database = get();
+        UserRepository::new(db)
+    }
+}
+
+#[derive(Serialize)]
+struct HealthResponse { status: String, users: usize }
+
+async fn health_check(Inject(repo): Inject<UserRepository>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok".to_string(),
+        users: repo.user_count(),
+    })
+}
+
+#[tokio::main]
+async fn main() {
+    __oxidi_init__();
+
+    let app = Router::new().route("/health", axum_get(health_check));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### How It Works
+
+`Inject<T>` implements Axum's `FromRequestParts<S>` extractor. When a handler declares `Inject<T>` as a parameter, Axum calls the extractor, which resolves `T` from the global Oxidi container via `try_get::<T>()`.
+
+Unlike `shaku_axum`, which stores the module in Axum's `State`, Oxidi already uses a global container — so no `State` wiring is needed.
+
+### API
+
+- **`Inject<T>`** — An extractor that resolves `T` from the Oxidi container. Implements `Deref` for convenient access to the inner value.
+
+---
+
 ## API Reference
 
 ### `oxidi_core::module! { ... }`
@@ -389,6 +541,7 @@ Declares a DI module. Must be placed at module level.
 |---|---|
 | `single { ... }` | Registers a singleton service |
 | `factory { ... }` | Registers a factory service |
+| `scoped { ... }` | Registers a scoped service (one per scope) |
 | `get::<T>()` | Resolves a dependency of type `T` |
 
 ### `oxidi_core::get::<T>() -> T`
@@ -404,6 +557,14 @@ Retrieves a service of type `T` from the global container.
 ### `__oxidi_init__()`
 
 Initializes the global container. Generated automatically by `module!`. Call exactly once at application startup.
+
+### `oxidi_core::scope(|| { ... })`
+
+Activates a new scope around a closure. Inside the closure, `get()` checks the scope first for scoped services, then falls back to global singletons and factories. When the closure returns, the scope (and all scoped instances) are dropped.
+
+**Requirements:**
+- `__oxidi_init__()` must have been called before entering a scope.
+- Scopes are thread-local: a scope created in one thread is not visible in another.
 
 ### `OxidiResolve` Trait
 
@@ -421,9 +582,10 @@ Oxidi consists of three crates:
 
 ```
 oxidi/
-├── oxidi_core/        # Runtime: get(), OxidiResolve, global container
-├── oxidi_macros/      # Proc-macro: module!(), DSL parser, analyzer, codegen
-└── oxidi_expample_app/ # Example application
+├── oxidi_axum/          # Axum integration: Inject<T> extractor
+├── oxidi_core/          # Runtime: get(), OxidiResolve, global container
+├── oxidi_macros/        # Proc-macro: module!(), DSL parser, analyzer, codegen
+└── oxidi_expample_app/  # Example application (CLI + Axum)
 ```
 
 ### Compilation Pipeline
@@ -433,7 +595,7 @@ module! { ... }
     │
     ▼
 ┌──────────────┐
-│  DSL Parser   │  Parses `single` / `factory` blocks, extracts get::<T>() calls
+│  DSL Parser   │  Parses `single` / `factory` / `scoped` blocks, extracts get::<T>() calls
 └──────┬───────┘
        │
        ▼
@@ -456,7 +618,7 @@ module! { ... }
 The `module!` macro generates:
 
 1. **`OxidiContainer` struct** — holds all singleton services as fields
-2. **Factory methods** — one per `factory` service, creates new instances on demand
+2. **Factory methods** — one per `factory` or `scoped` service, creates new instances on demand
 3. **`OxidiResolve` impls** — one per service type, maps `get::<T>()` to the correct container field or factory method
 4. **`__oxidi_init__()` function** — builds the container and stores it globally
 
@@ -495,13 +657,18 @@ This enables domain-specific extensions such as:
 
 Oxidi is in its early stages. Here's what's planned:
 
-### v0.2 (planned)
-- **Scoped services** — request-scoped and session-scoped lifetimes
+### v0.2 (done)
+- **Axum integration** — [`oxidi_axum`](https://crates.io/crates/oxidi_axum) crate with `Inject<T>` extractor for seamless Axum handler injection
+
+### v0.3 (done)
+- **Scoped services** — `scoped { ... }` keyword with `scope(|| { ... })` for per-scope lifetimes, including nested scope support
+- **Async compatibility** — `async_scope()` for async code with `.await` points, compatible with any runtime (Tokio, async-std, smol)
+
+### v0.4 (planned)
 - **`Option<T>` support** — optional dependencies that may not be registered
 - **Named/keyed services** — register multiple instances of the same type with different keys
 
-### v0.3 (planned)
-- **Framework integration** — `oxidi_axum` crate for seamless Axum handler injection
+### v0.5 (planned)
 - **Testing support** — `with_override()` to replace services with mocks in tests
 - **Multi-module composition** — combine modules from different crates
 

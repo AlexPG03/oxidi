@@ -17,6 +17,7 @@ use codegen::generate;
 ///
 /// - `single { ... }` — Singleton service (one instance, shared)
 /// - `factory { ... }` — Factory service (new instance each time)
+/// - `scoped { ... }` — Scoped service (one instance per scope)
 /// - `get::<T>()` — Resolve a dependency inside the block
 ///
 /// The macro must be placed at the **module level** (outside any function).
@@ -55,6 +56,32 @@ use codegen::generate;
 ///     // 3. Access services from anywhere
 ///     let db: Database = get();
 ///     let handler = get::<RequestHandler>();
+/// }
+/// ```
+///
+/// # Scoped Services
+///
+/// Scoped services are created once per scope. Use `scope(|| { ... })` to
+/// activate a scope:
+///
+/// ```rust,ignore
+/// use oxidi_core::{module, get, scope};
+///
+/// module! {
+///     single { Database::new("postgres://localhost") }
+///
+///     scoped {
+///         let db: Database = get();
+///         Transaction::new(db)
+///     }
+/// }
+///
+/// fn main() {
+///     __oxidi_init__();
+///
+///     scope(|| {
+///         let tx: Transaction = get(); // new instance, cached in this scope
+///     }); // tx is dropped here
 /// }
 /// ```
 #[proc_macro]

@@ -12,6 +12,7 @@ readme = "README.md"
 
 [dependencies]
 oxidi_macros = { version = "0.1.0", path = "../oxidi_macros" }
+task-local = "0.1"
 
 [package.metadata.docs.rs]
 all-features = true

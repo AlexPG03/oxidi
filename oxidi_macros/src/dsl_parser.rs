@@ -10,11 +10,12 @@ pub struct ServiceDef {
     pub dependencies: Vec<syn::Type>,
 }
 
-/// Type of service: singleton (one instance) or factory (new instance each time)
+/// Type of service: singleton (one instance) or factory (new instance each time) or scoped (one per scope)
 #[derive(Debug, Clone, Copy)]
 pub enum ServiceType {
     Single,
     Factory,
+    Scoped,
 }
 
 /// Parsed result from the `module!()` macro
@@ -28,6 +29,7 @@ pub struct ModuleDef {
 /// The DSL supports:
 /// - `single { ... }` — singleton service
 /// - `factory { ... }` — factory service (new instance each time)
+/// - `scoped { ... }` — scoped service (one instance per scope)
 pub fn parse_module(input: proc_macro::TokenStream) -> syn::Result<ModuleDef> {
     let parser = |input: syn::parse::ParseStream| {
         let mut services = Vec::new();
@@ -46,10 +48,13 @@ pub fn parse_module(input: proc_macro::TokenStream) -> syn::Result<ModuleDef> {
                     service_type = ServiceType::Single;
                 } else if temp_ident == "factory" {
                     service_type = ServiceType::Factory;
+                } else if temp_ident == "scoped" {
+                    service_type = ServiceType::Scoped;
                 } else {
                     return Err(input.error(format!(
-                        "Expected `single` or `factory`, found `{}`. \
-                        Use `single {{ ... }}` for singletons or `factory {{ ... }}` for factories.",
+                        "Expected `single`, `factory`, or `scoped`, found `{}`. \
+                        Use `single {{ ... }}` for singletons, `factory {{ ... }}` for factories, \
+                        or `scoped {{ ... }}` for per-scope services.",
                         temp_ident
                     )));
                 }

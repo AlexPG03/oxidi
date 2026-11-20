@@ -38,13 +38,13 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
         .map(|(name, ty, _, _)| (type_to_string(ty), name.clone()))
         .collect();
     
-    // Generate struct fields - only singletons are stored; factories are methods
+    // Generate struct fields - only singletons are stored; factories and scoped are methods
     let struct_fields: Vec<_> = field_info.iter().filter_map(|(name, ty, stype, _body)| {
         match stype {
             ServiceType::Single => Some(quote! {
                 #name: #ty,
             }),
-            ServiceType::Factory => None,
+            ServiceType::Factory | ServiceType::Scoped => None,
         }
     }).collect();
     
@@ -57,7 +57,7 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
                     let #name = { #resolved_body };
                 })
             }
-            ServiceType::Factory => None,
+            ServiceType::Factory | ServiceType::Scoped => None,
         }
     }).collect();
     
@@ -67,10 +67,10 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
         .map(|(name, _, _, _)| name.clone())
         .collect();
     
-    // Generate factory methods
+    // Generate factory methods (for both Factory and Scoped service types)
     let factory_methods: Vec<_> = field_info.iter().filter_map(|(name, ty, stype, body)| {
         match stype {
-            ServiceType::Factory => {
+            ServiceType::Factory | ServiceType::Scoped => {
                 let resolved_body = replace_get_calls(body, &type_to_field);
                 // For factory methods, replace __service_N with self.__service_N
                 let body_tokens = quote::quote!(#resolved_body);
@@ -135,6 +135,28 @@ pub fn generate(module: &ModuleDef, analysis: &AnalysisResult) -> (proc_macro2::
                             let c = container.downcast_ref::<OxidiContainer>()
                                 .expect("Container type mismatch");
                             c.#method_ident()
+                        }
+                    }
+                }
+            }
+            ServiceType::Scoped => {
+                let name_str = name.to_string();
+                let method_name = name_str.trim_start_matches("__").to_string();
+                let method_ident = format_ident!("{}", method_name);
+                quote! {
+                    #[allow(non_local_definitions)]
+                    impl oxidi_core::OxidiResolve for #ty {
+                        fn resolve(container: &std::boxed::Box<dyn std::any::Any + Send + Sync>) -> Self {
+                            // Check scope cache first
+                            if let Some(cached) = oxidi_core::__check_scope_cache::<Self>() {
+                                return cached;
+                            }
+                            // Create from factory and cache in scope
+                            let c = container.downcast_ref::<OxidiContainer>()
+                                .expect("Container type mismatch");
+                            let val = c.#method_ident();
+                            oxidi_core::__cache_in_scope::<Self>(val.clone());
+                            val
                         }
                     }
                 }
